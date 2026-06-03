@@ -1,0 +1,82 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: greenops_pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: greenops
+      POSTGRES_PASSWORD: greenops
+      POSTGRES_DB: greenops
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../postgres/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U greenops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: greenops_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: greenops
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_INSTALL_PLUGINS: ""
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ingestion:
+    build:
+      context: ../ingestion
+      dockerfile: Dockerfile
+    container_name: greenops_ingestion
+    restart: unless-stopped
+    environment:
+      PG_CONN: "host=postgres port=5432 user=greenops password=greenops dbname=greenops sslmode=disable"
+      RAW_PATH: /data/raw
+      PARQUET_PATH: /data/parquet
+      RENNES_HOST: paradoxe-1.rennes.grid5000.fr
+      LILLE_HOST: chifflot-3.lille.grid5000.fr
+      NANCY_HOST: gros-1.nancy.grid5000.fr
+    volumes:
+      - rawdata:/data/raw
+      - parquetdata:/data/parquet
+      - ~/.ssh:/root/.ssh:ro   # SSH keys for Grid5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  csv2parquet:
+    build:
+      context: ../pipeline
+      dockerfile: Dockerfile
+    container_name: greenops_parquet
+    restart: unless-stopped
+    environment:
+      RAW_PATH: /data/raw
+      PARQUET_PATH: /data/parquet
+      POLL_INTERVAL: "300"  # seconds
+    volumes:
+      - rawdata:/data/raw
+      - parquetdata:/data/parquet
+    depends_on:
+      - ingestion
+
+volumes:
+  pgdata:
+  grafana_data:
+  rawdata:
+  parquetdata:

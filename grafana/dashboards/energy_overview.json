@@ -1,0 +1,125 @@
+{
+  "title": "GreenOps — Energy Overview",
+  "uid": "greenops-main",
+  "tags": ["greenops","energy","cicd"],
+  "timezone": "browser",
+  "refresh": "5m",
+  "time": {"from": "now-30d","to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Energy by Site (J) — Last 30d",
+      "type": "bargauge",
+      "gridPos": {"x":0,"y":0,"w":12,"h":6},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT site, SUM(total_energy_j) AS energy_j FROM energy_jobs WHERE is_valid=TRUE AND date > NOW()-INTERVAL '30 days' GROUP BY site ORDER BY energy_j DESC",
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults":{"unit":"joule"}}
+    },
+    {
+      "id": 2,
+      "title": "Daily Energy Trend by Site",
+      "type": "timeseries",
+      "gridPos": {"x":12,"y":0,"w":12,"h":6},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT day AS time, site, total_j FROM v_daily_energy_by_site WHERE day > NOW()-INTERVAL '30 days' ORDER BY time",
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults":{"unit":"joule"}}
+    },
+    {
+      "id": 3,
+      "title": "Energy by Architecture",
+      "type": "piechart",
+      "gridPos": {"x":0,"y":6,"w":8,"h":6},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT arch, SUM(total_energy_j) AS energy_j FROM energy_jobs WHERE is_valid=TRUE GROUP BY arch",
+        "format": "table"
+      }]
+    },
+    {
+      "id": 4,
+      "title": "Process vs eBPF Measurement Coverage",
+      "type": "piechart",
+      "gridPos": {"x":8,"y":6,"w":8,"h":6},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT measurement_src, COUNT(*) AS jobs FROM energy_jobs WHERE is_valid=TRUE GROUP BY measurement_src",
+        "format": "table"
+      }]
+    },
+    {
+      "id": 5,
+      "title": "Process vs eBPF — Energy Comparison",
+      "type": "bargauge",
+      "gridPos": {"x":16,"y":6,"w":8,"h":6},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT measurement_src, AVG(total_energy_j) AS avg_j FROM energy_jobs WHERE is_valid=TRUE AND measurement_src != 'unknown' GROUP BY measurement_src",
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults":{"unit":"joule"}}
+    },
+    {
+      "id": 6,
+      "title": "Top 10 Energy-Intensive Jobs",
+      "type": "table",
+      "gridPos": {"x":0,"y":12,"w":16,"h":8},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT job_name, repo_name, site, category, ROUND(total_j::numeric,2) AS total_j, ROUND(avg_j::numeric,2) AS avg_j, runs FROM v_top_jobs_energy LIMIT 10",
+        "format": "table"
+      }]
+    },
+    {
+      "id": 7,
+      "title": "Ingestion Health",
+      "type": "stat",
+      "gridPos": {"x":16,"y":12,"w":8,"h":4},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT SUM(rows_ingested) AS ingested, SUM(rows_rejected) AS rejected, ROUND(100.0*SUM(rows_ingested)/NULLIF(SUM(rows_ingested)+SUM(rows_rejected),0),1) AS success_pct FROM ingestion_log WHERE run_at > NOW()-INTERVAL '24 hours'",
+        "format": "table"
+      }]
+    },
+    {
+      "id": 8,
+      "title": "Ingestion Volume — 24h",
+      "type": "timeseries",
+      "gridPos": {"x":0,"y":20,"w":24,"h":5},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT hour AS time, ingested, rejected FROM v_ingestion_health WHERE hour > NOW()-INTERVAL '7 days' ORDER BY hour",
+        "format": "table"
+      }]
+    },
+    {
+      "id": 9,
+      "title": "Component Energy Breakdown (CPU/RAM/GPU/NIC/SD)",
+      "type": "timeseries",
+      "gridPos": {"x":0,"y":25,"w":24,"h":7},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT day AS time, component, SUM(total_j) AS energy_j FROM v_component_energy WHERE day > NOW()-INTERVAL '30 days' GROUP BY day, component ORDER BY day",
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults":{"unit":"joule"}}
+    },
+    {
+      "id": 10,
+      "title": "Monthly Energy per Category",
+      "type": "barchart",
+      "gridPos": {"x":0,"y":32,"w":24,"h":7},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT month, category, SUM(total_j) AS energy_j FROM v_monthly_job_energy GROUP BY month, category ORDER BY month",
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults":{"unit":"joule"}}
+    }
+  ]
+}
