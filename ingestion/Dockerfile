@@ -4,26 +4,25 @@ RUN apk add --no-cache rsync openssh-client git
 
 WORKDIR /app
 
-# copy modules first
 COPY go.mod go.sum ./
-
-# ensure dependencies are clean + deterministic
 RUN go mod download
 RUN go mod tidy
 
-# copy full source
 COPY . .
-
-# build static binary
 RUN CGO_ENABLED=0 go build -o ingestion .
 
 # -------------------------
 FROM alpine:3.19
 
-RUN apk add --no-cache rsync openssh-client ca-certificates
+RUN apk add --no-cache rsync openssh-client ca-certificates su-exec
+
+# Création de l'utilisateur avec son home pointant sur /app
+RUN adduser -D -h /app -u 1000 app
 
 WORKDIR /app
-
 COPY --from=builder /app/ingestion .
 
-CMD ["./ingestion"]
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

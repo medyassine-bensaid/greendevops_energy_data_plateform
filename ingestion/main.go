@@ -38,19 +38,19 @@ type Config struct {
 }
 
 func loadConfig() Config {
-	return Config{
-		LocalRawPath: envOr("RAW_PATH", "/data/raw"),
-		PGConn:       envOr("PG_CONN", "host=localhost port=5432 user=greenops password=greenops dbname=greenops sslmode=disable"),
-		Workers:      5,
-		PollInterval: 5 * time.Minute,
-		Sites: []Site{
-			{Name: "rennes",  Host: envOr("RENNES_HOST", "paradoxe-1.rennes.grid5000.fr"),  User: "mbensaid", RemotePath: "~/GreenDevOps_Restored/jobs_energy", Arch: "x86_64"},
-			{Name: "lille",   Host: envOr("LILLE_HOST", "chifflot-3.lille.grid5000.fr"),    User: "mbensaid", RemotePath: "~/GreenDevOps_Restored/jobs_energy", Arch: "x86_64"},
-			{Name: "nancy",   Host: envOr("NANCY_HOST", "gros-1.nancy.grid5000.fr"),        User: "mbensaid", RemotePath: "~/GreenDevOps_Restored/jobs_energy", Arch: "x86_64"},
-			{Name: "lyon",    Host: envOr("LYON_HOST", "gemini-1.lyon.grid5000.fr"),        User: "mbensaid", RemotePath: "~/GreenDevOps_Restored/jobs_energy", Arch: "x86_64"},
-			{Name: "grenoble",Host: envOr("GRENOBLE_HOST", "dahu-1.grenoble.grid5000.fr"),  User: "mbensaid", RemotePath: "~/GreenDevOps_Restored/jobs_energy", Arch: "x86_64"},
-		},
-	}
+    return Config{
+        LocalRawPath: envOr("RAW_PATH", "/data/raw"),
+        PGConn:       envOr("PG_CONN", "host=localhost port=5432 user=greenops password=greenops dbname=greenops sslmode=disable"),
+        Workers:      5,
+        PollInterval: 5 * time.Minute,
+        Sites: []Site{
+            {Name: "rennes",  Host: envOr("RENNES_HOST", "frontend.rennes.grid5000.fr"),     User: "mbensaid", RemotePath: "/home/mbensaid/GreenDevOps_Restored/jobs_energy", Arch: "x86_64"},
+            {Name: "lille",   Host: envOr("LILLE_HOST", "frontend.lille.grid5000.fr"),       User: "mbensaid", RemotePath: "/home/mbensaid/GreenDevOps_Restored/jobs_energy", Arch: "x86_64"},
+            {Name: "nancy",   Host: envOr("NANCY_HOST", "frontend.nancy.grid5000.fr"),       User: "mbensaid", RemotePath: "/home/mbensaid/GreenDevOps_Restored/jobs_energy", Arch: "x86_64"},
+            {Name: "lyon",    Host: envOr("LYON_HOST", "frontend.lyon.grid5000.fr"),         User: "mbensaid", RemotePath: "/home/mbensaid/GreenDevOps_Restored/jobs_energy", Arch: "x86_64"},
+            {Name: "grenoble",Host: envOr("GRENOBLE_HOST", "frontend.grenoble.grid5000.fr"), User: "mbensaid", RemotePath: "/home/mbensaid/GreenDevOps_Restored/jobs_energy", Arch: "x86_64"},
+        },
+    }
 }
 
 func envOr(key, def string) string {

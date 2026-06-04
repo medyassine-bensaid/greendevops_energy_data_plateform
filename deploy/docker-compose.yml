@@ -48,13 +48,14 @@ services:
       PG_CONN: "host=postgres port=5432 user=greenops password=greenops dbname=greenops sslmode=disable"
       RAW_PATH: /data/raw
       PARQUET_PATH: /data/parquet
-      RENNES_HOST: paradoxe-1.rennes.grid5000.fr
-      LILLE_HOST: chifflot-3.lille.grid5000.fr
-      NANCY_HOST: gros-1.nancy.grid5000.fr
+      RENNES_HOST: frontend.rennes.grid5000.fr
+      LILLE_HOST: frontend.lille.grid5000.fr
+      NANCY_HOST: frontend.nancy.grid5000.fr
+      HOME: /app
     volumes:
       - rawdata:/data/raw
       - parquetdata:/data/parquet
-      - ~/.ssh:/root/.ssh:ro   # SSH keys for Grid5000
+      - ~/.ssh/id_rsa:/mnt/ssh/id_rsa:ro
     depends_on:
       postgres:
         condition: service_healthy
