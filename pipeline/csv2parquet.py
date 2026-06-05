@@ -11,7 +11,7 @@ import logging
 import hashlib
 import duckdb
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, UTC
 
 logging.basicConfig(
     level=logging.INFO,
@@ -85,7 +85,7 @@ def convert_csv(csv_path: Path, con: duckdb.DuckDBPyConnection):
     df["arch"]          = arch
     df["file_type"]     = file_type
     df["source_file"]   = str(csv_path)
-    df["converted_at"]  = datetime.utcnow().isoformat()
+    df["converted_at"]  = datetime.now(UTC).isoformat()
 
     # Infer measurement_src
     if "measurement" in df.columns or "measurement_source" in df.columns:

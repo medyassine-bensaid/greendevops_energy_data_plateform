@@ -201,6 +201,8 @@ func rsyncSite(site Site, localPath string) error {
 	cmd := exec.Command("rsync",
 		"-avz",
 		"--no-perms",
+                "--no-links",     // 🔒 SÉCURITÉ : Ne copie pas les liens symboliques distants
+                "--safe-links",   // 🔒 SÉCURITÉ : Ignore les liens qui sortent du dossier cible
 		"--include=*.csv",
 		"--include=*/",
 		"--exclude=*",
