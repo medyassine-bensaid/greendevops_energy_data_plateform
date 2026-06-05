@@ -76,6 +76,26 @@ services:
     depends_on:
       - ingestion
 
+
+  notebook:
+    image: jupyter/datascience-notebook:python-3.9
+    ports:
+      - "8888:8888"
+    volumes:
+      - ../analysis:/home/jovyan/work
+      # 1. Monte ton dossier de projet actuel pour retrouver ton fichier .ipynb
+      - .:/app 
+      # 2. Monte tes volumes de données partagés (en lecture seule :ro pour l'analyse)
+      - rawdata:/data/raw:ro
+      - parquetdata:/data/parquet:ro
+    environment:
+      - PROJECT_DIR=/app
+      - RAW_PATH=/data/raw
+      - PARQUET_PATH=/data/parquet
+      # ⚠️ ATTENTION : Dans le réseau Docker, 'localhost' devient le nom de ton service Postgres
+      - PG_URL=postgresql://greenops:greenops@postgres:5432/greenops
+    working_dir: /app
+
 volumes:
   pgdata:
   grafana_data:
