@@ -82,9 +82,8 @@ services:
     ports:
       - "8888:8888"
     volumes:
-      - ../analysis:/home/jovyan/work
       # 1. Monte ton dossier de projet actuel pour retrouver ton fichier .ipynb
-      - .:/app 
+      - ../analysis:/app 
       # 2. Monte tes volumes de données partagés (en lecture seule :ro pour l'analyse)
       - rawdata:/data/raw:ro
       - parquetdata:/data/parquet:ro
@@ -92,9 +91,20 @@ services:
       - PROJECT_DIR=/app
       - RAW_PATH=/data/raw
       - PARQUET_PATH=/data/parquet
-      # ⚠️ ATTENTION : Dans le réseau Docker, 'localhost' devient le nom de ton service Postgres
       - PG_URL=postgresql://greenops:greenops@postgres:5432/greenops
     working_dir: /app
+
+
+  mlflow-ui:
+    image: ghcr.io/mlflow/mlflow:v2.11.3
+    container_name: greenops_mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - ../analysis:/app
+    working_dir: /app
+    command: mlflow ui --backend-store-uri /app/mlruns --host 0.0.0.0 --port 5000
+    restart: unless-stopped
 
 volumes:
   pgdata:

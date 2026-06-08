@@ -1,0 +1,263 @@
+{
+  "title": "GreenOps — Pipeline Evolution & Git History",
+  "uid": "greenops-evolution",
+  "tags": ["greenops","evolution","git","history"],
+  "timezone": "browser",
+  "refresh": "10m",
+  "time": {"from": "now-90d","to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "repo",
+        "label": "Repository",
+        "type": "query",
+        "datasource": {"uid":"greenops_pg"},
+        "query": "SELECT DISTINCT repo_name FROM energy_jobs ORDER BY repo_name",
+        "includeAll": false,
+        "current": {}
+      },
+      {
+        "name": "job",
+        "label": "Job",
+        "type": "query",
+        "datasource": {"uid":"greenops_pg"},
+        "query": "SELECT DISTINCT job_name FROM energy_jobs WHERE repo_name = '$repo' ORDER BY job_name",
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+
+    {
+      "id": 200,
+      "title": "ROW — Pipeline Version Timeline",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {"x":0,"y":0,"w":24,"h":1}
+    },
+
+    {
+      "id": 201,
+      "title": "Energy per Commit — Pipeline History",
+      "description": "Each point = one pipeline run. X=date, Y=total energy, color=branch. Hover to see commit_id.",
+      "type": "timeseries",
+      "gridPos": {"x":0,"y":1,"w":24,"h":9},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT p.date AS time, p.commit_id, p.branch, p.total_pipeline_energy_j AS energy_j, p.trigger FROM energy_pipelines p WHERE p.repo_name = '$repo' AND p.is_valid = TRUE ORDER BY p.date ASC",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {"unit":"joule"},
+        "overrides": [
+          {"matcher":{"id":"byName","options":"main"},    "properties":[{"id":"color","value":{"fixedColor":"#4CAF50","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"develop"}, "properties":[{"id":"color","value":{"fixedColor":"#2196F3","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"feature"}, "properties":[{"id":"color","value":{"fixedColor":"#FF9800","mode":"fixed"}}]}
+        ]
+      },
+      "options": {"tooltip":{"mode":"multi"},"legend":{"displayMode":"list","placement":"bottom"}}
+    },
+
+    {
+      "id": 202,
+      "title": "ROW — Job Structure Evolution",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {"x":0,"y":10,"w":24,"h":1}
+    },
+
+    {
+      "id": 203,
+      "title": "Job Count per Pipeline over Time",
+      "description": "Detect when new jobs were added or removed. More jobs = more parallelism or complexity.",
+      "type": "timeseries",
+      "gridPos": {"x":0,"y":11,"w":12,"h":7},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT DATE_TRUNC('day', date) AS time, COUNT(DISTINCT job_name) AS distinct_jobs, COUNT(*) AS total_runs FROM energy_jobs WHERE repo_name = '$repo' AND is_valid = TRUE GROUP BY 1 ORDER BY 1",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {"unit":"short"},
+        "overrides": [
+          {"matcher":{"id":"byName","options":"distinct_jobs"},"properties":[{"id":"displayName","value":"Distinct Jobs"}]},
+          {"matcher":{"id":"byName","options":"total_runs"},    "properties":[{"id":"displayName","value":"Total Runs"}]}
+        ]
+      },
+      "options": {"tooltip":{"mode":"multi"}}
+    },
+
+    {
+      "id": 204,
+      "title": "Energy per Job over Time (Selected Repo)",
+      "description": "Stacked — see if a specific job started consuming more after a commit",
+      "type": "timeseries",
+      "gridPos": {"x":12,"y":11,"w":12,"h":7},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT DATE_TRUNC('day', date) AS time, job_name, AVG(total_energy_j) AS avg_j FROM energy_jobs WHERE repo_name = '$repo' AND is_valid = TRUE AND date > NOW()-INTERVAL '90 days' GROUP BY 1, 2 ORDER BY 1, 2",
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults":{"unit":"joule"}},
+      "options": {"tooltip":{"mode":"multi"}}
+    },
+
+    {
+      "id": 205,
+      "title": "ROW — Commit-level Causality",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {"x":0,"y":18,"w":24,"h":1}
+    },
+
+    {
+      "id": 206,
+      "title": "Top 20 Commits Ranked by Energy Impact",
+      "description": "Which commits triggered the most expensive pipelines? Identify regressions.",
+      "type": "table",
+      "gridPos": {"x":0,"y":19,"w":14,"h":9},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT p.commit_id, p.branch, DATE(p.date) AS run_date, p.trigger, ROUND(p.total_pipeline_energy_j::numeric,2) AS pipeline_j, COUNT(j.id) AS jobs FROM energy_pipelines p LEFT JOIN energy_jobs j ON j.pipeline_id = p.pipeline_id AND j.is_valid = TRUE WHERE p.repo_name = '$repo' AND p.is_valid = TRUE GROUP BY p.commit_id, p.branch, p.date, p.trigger, p.total_pipeline_energy_j ORDER BY pipeline_j DESC LIMIT 20",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "overrides": [
+          {"matcher":{"id":"byName","options":"pipeline_j"},"properties":[
+            {"id":"unit","value":"joule"},
+            {"id":"custom.displayMode","value":"color-background"},
+            {"id":"color","value":{"mode":"continuous-GrYlRd"}}
+          ]},
+          {"matcher":{"id":"byName","options":"jobs"},"properties":[{"id":"custom.width","value":60}]},
+          {"matcher":{"id":"byName","options":"commit_id"},"properties":[{"id":"custom.width","value":90}]},
+          {"matcher":{"id":"byName","options":"branch"},   "properties":[{"id":"custom.width","value":80}]},
+          {"matcher":{"id":"byName","options":"run_date"}, "properties":[{"id":"custom.width","value":100}]}
+        ]
+      },
+      "options": {"sortBy":[{"displayName":"pipeline_j","desc":true}],"cellHeight":"sm"}
+    },
+
+    {
+      "id": 207,
+      "title": "Energy Regression vs Previous Commit",
+      "description": "Pipeline energy delta vs the previous run on the same branch. Positive = regression.",
+      "type": "bargauge",
+      "gridPos": {"x":14,"y":19,"w":10,"h":9},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "WITH runs AS (SELECT commit_id, branch, date, total_pipeline_energy_j, LAG(total_pipeline_energy_j) OVER (PARTITION BY branch ORDER BY date) AS prev_j FROM energy_pipelines WHERE repo_name = '$repo' AND is_valid = TRUE) SELECT commit_id, branch, ROUND((total_pipeline_energy_j - prev_j)::numeric, 2) AS delta_j, ROUND(100.0*(total_pipeline_energy_j - prev_j)/NULLIF(prev_j,0), 1) AS delta_pct FROM runs WHERE prev_j IS NOT NULL ORDER BY date DESC LIMIT 10",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {"unit":"joule","color":{"mode":"thresholds"},
+          "thresholds":{"steps":[{"value":null,"color":"green"},{"value":0,"color":"yellow"},{"value":5,"color":"red"}]}}
+      },
+      "options": {"orientation":"horizontal","displayMode":"gradient"}
+    },
+
+    {
+      "id": 208,
+      "title": "ROW — Resource Evolution",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {"x":0,"y":28,"w":24,"h":1}
+    },
+
+    {
+      "id": 209,
+      "title": "CPU vs RAM Energy Evolution (per commit date)",
+      "description": "Track how component balance changed over time — did GPU start dominating after a new stage?",
+      "type": "timeseries",
+      "gridPos": {"x":0,"y":29,"w":16,"h":8},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT DATE_TRUNC('day', date) AS time, component, AVG(avg_power_w) AS avg_w FROM energy_granularity WHERE repo_name = '$repo' AND is_valid = TRUE AND date > NOW()-INTERVAL '90 days' GROUP BY 1, 2 ORDER BY 1, 2",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {"unit":"watt"},
+        "overrides": [
+          {"matcher":{"id":"byName","options":"cpu"}, "properties":[{"id":"color","value":{"fixedColor":"#2196F3","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"ram"}, "properties":[{"id":"color","value":{"fixedColor":"#4CAF50","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"gpu"}, "properties":[{"id":"color","value":{"fixedColor":"#FF9800","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"nic"}, "properties":[{"id":"color","value":{"fixedColor":"#E91E63","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"sd"},  "properties":[{"id":"color","value":{"fixedColor":"#9E9E9E","mode":"fixed"}}]}
+        ]
+      },
+      "options": {"tooltip":{"mode":"multi"}}
+    },
+
+    {
+      "id": 210,
+      "title": "Avg Job Duration over Time",
+      "description": "Duration inflation = sign of added complexity or resource starvation",
+      "type": "timeseries",
+      "gridPos": {"x":16,"y":29,"w":8,"h":8},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT DATE_TRUNC('day', date) AS time, job_name, AVG(duration_s) AS avg_dur_s FROM energy_jobs WHERE repo_name = '$repo' AND is_valid = TRUE AND date > NOW()-INTERVAL '90 days' GROUP BY 1, 2 ORDER BY 1, 2",
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults":{"unit":"s"}},
+      "options": {"tooltip":{"mode":"multi"}}
+    },
+
+    {
+      "id": 211,
+      "title": "ROW — Trigger & Branch Analysis",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {"x":0,"y":37,"w":24,"h":1}
+    },
+
+    {
+      "id": 212,
+      "title": "Manual vs Auto Trigger — Energy Impact",
+      "description": "Manual runs often indicate debugging/testing — are they more expensive?",
+      "type": "piechart",
+      "gridPos": {"x":0,"y":38,"w":8,"h":7},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT COALESCE(trigger,'auto') AS trigger_type, SUM(total_energy_j) AS energy_j FROM energy_jobs WHERE repo_name = '$repo' AND is_valid = TRUE GROUP BY 1 ORDER BY energy_j DESC",
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults":{"unit":"joule"}},
+      "options": {"pieType":"donut","legend":{"displayMode":"list","placement":"right"}}
+    },
+
+    {
+      "id": 213,
+      "title": "Energy by Branch",
+      "description": "Feature branches vs main — track wasted energy on failed features",
+      "type": "bargauge",
+      "gridPos": {"x":8,"y":38,"w":8,"h":7},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT branch, ROUND(SUM(total_energy_j)::numeric,2) AS total_j, COUNT(*) AS runs FROM energy_jobs WHERE repo_name = '$repo' AND is_valid = TRUE GROUP BY branch ORDER BY total_j DESC LIMIT 10",
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults":{"unit":"joule"}},
+      "options": {"orientation":"horizontal","displayMode":"gradient"}
+    },
+
+    {
+      "id": 214,
+      "title": "Zero-Energy Suspect Runs over Time",
+      "description": "Runs with duration>10s but total_energy=0 — likely measurement failures",
+      "type": "timeseries",
+      "gridPos": {"x":16,"y":38,"w":8,"h":7},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT DATE_TRUNC('day', date) AS time, COUNT(*) AS suspect_count FROM energy_jobs WHERE repo_name = '$repo' AND total_energy_j = 0 AND duration_s > 10 AND date > NOW()-INTERVAL '90 days' GROUP BY 1 ORDER BY 1",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {"unit":"short","color":{"fixedColor":"#FF5722","mode":"fixed"}}
+      },
+      "options": {"tooltip":{"mode":"single"}}
+    }
+
+  ]
+}

@@ -1,0 +1,19 @@
+apiVersion: 1
+
+datasources:
+  - name: GreenOps PostgreSQL
+    type: postgres
+    uid: greenops_pg
+    url: postgres:5432
+    user: greenops
+    secureJsonData:
+      password: greenops
+    jsonData:
+      database: greenops
+      sslmode: disable
+      maxOpenConns: 10
+      maxIdleConns: 5
+      connMaxLifetime: 14400
+      postgresVersion: 1600
+      timescaledb: false
+    isDefault: true

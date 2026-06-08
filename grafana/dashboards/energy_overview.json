@@ -5,121 +5,515 @@
   "timezone": "browser",
   "refresh": "5m",
   "time": {"from": "now-30d","to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "site",
+        "label": "Site",
+        "type": "query",
+        "datasource": {"uid":"greenops_pg"},
+        "query": "SELECT DISTINCT site FROM energy_jobs ORDER BY site",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {}
+      },
+      {
+        "name": "category",
+        "label": "Category",
+        "type": "query",
+        "datasource": {"uid":"greenops_pg"},
+        "query": "SELECT DISTINCT category FROM energy_jobs WHERE category IS NOT NULL ORDER BY category",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {}
+      },
+      {
+        "name": "repo",
+        "label": "Repo",
+        "type": "query",
+        "datasource": {"uid":"greenops_pg"},
+        "query": "SELECT DISTINCT repo_name FROM energy_jobs ORDER BY repo_name",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {}
+      }
+    ]
+  },
   "panels": [
+
+    {
+      "id": 100,
+      "title": "ROW — KPI Summary",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {"x":0,"y":0,"w":24,"h":1}
+    },
+
     {
       "id": 1,
-      "title": "Total Energy by Site (J) — Last 30d",
-      "type": "bargauge",
-      "gridPos": {"x":0,"y":0,"w":12,"h":6},
+      "title": "Total Energy (J) — Last 30d",
+      "description": "Sum of all valid job energy in selected period",
+      "type": "stat",
+      "gridPos": {"x":0,"y":1,"w":4,"h":4},
       "datasource": {"uid":"greenops_pg"},
       "targets": [{
-        "rawSql": "SELECT site, SUM(total_energy_j) AS energy_j FROM energy_jobs WHERE is_valid=TRUE AND date > NOW()-INTERVAL '30 days' GROUP BY site ORDER BY energy_j DESC",
+        "rawSql": "SELECT SUM(total_energy_j) AS value FROM energy_jobs WHERE is_valid=TRUE AND date > NOW()-INTERVAL '30 days'",
         "format": "table"
       }],
-      "fieldConfig": {"defaults":{"unit":"joule"}}
+      "fieldConfig": {
+        "defaults": {
+          "unit": "joule",
+          "color": {"mode":"thresholds"},
+          "thresholds": {"steps":[
+            {"value":null,"color":"green"},
+            {"value":10000,"color":"yellow"},
+            {"value":50000,"color":"red"}
+          ]}
+        }
+      },
+      "options": {"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background"}
     },
+
+    {
+      "id": 11,
+      "title": "Total CO₂ equiv (g) — 30d",
+      "description": "Joules × 0.000233 gCO2/J (EU average grid factor)",
+      "type": "stat",
+      "gridPos": {"x":4,"y":1,"w":4,"h":4},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT ROUND(SUM(total_energy_j) * 0.000233, 4) AS value FROM energy_jobs WHERE is_valid=TRUE AND date > NOW()-INTERVAL '30 days'",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "displayName": "gCO₂eq",
+          "color": {"mode":"thresholds"},
+          "thresholds": {"steps":[
+            {"value":null,"color":"green"},
+            {"value":5,"color":"yellow"},
+            {"value":20,"color":"red"}
+          ]}
+        }
+      },
+      "options": {"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background"}
+    },
+
+    {
+      "id": 12,
+      "title": "eBPF Coverage %",
+      "description": "% jobs measured with eBPF vs process vs unknown",
+      "type": "stat",
+      "gridPos": {"x":8,"y":1,"w":4,"h":4},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE measurement_src='ebpf') / NULLIF(COUNT(*),0), 1) AS ebpf_pct FROM energy_jobs WHERE is_valid=TRUE",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {"mode":"thresholds"},
+          "thresholds": {"steps":[
+            {"value":null,"color":"red"},
+            {"value":30,"color":"yellow"},
+            {"value":60,"color":"green"}
+          ]}
+        }
+      },
+      "options": {"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background"}
+    },
+
+    {
+      "id": 13,
+      "title": "Avg Energy/Job (J)",
+      "type": "stat",
+      "gridPos": {"x":12,"y":1,"w":4,"h":4},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT ROUND(AVG(total_energy_j)::numeric, 3) AS value FROM energy_jobs WHERE is_valid=TRUE AND date > NOW()-INTERVAL '30 days'",
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults":{"unit":"joule","color":{"mode":"thresholds"},
+        "thresholds":{"steps":[{"value":null,"color":"green"},{"value":100,"color":"yellow"},{"value":500,"color":"red"}]}}}
+    },
+
+    {
+      "id": 14,
+      "title": "Ingestion Success %",
+      "type": "stat",
+      "gridPos": {"x":16,"y":1,"w":4,"h":4},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT ROUND(100.0*SUM(rows_ingested)/NULLIF(SUM(rows_ingested)+SUM(rows_rejected),0),1) AS value FROM ingestion_log WHERE run_at > NOW()-INTERVAL '24 hours'",
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults":{"unit":"percent","color":{"mode":"thresholds"},
+        "thresholds":{"steps":[{"value":null,"color":"red"},{"value":80,"color":"yellow"},{"value":99,"color":"green"}]}}}
+    },
+
+    {
+      "id": 15,
+      "title": "Total Jobs Ingested",
+      "type": "stat",
+      "gridPos": {"x":20,"y":1,"w":4,"h":4},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) AS value FROM energy_jobs WHERE is_valid=TRUE AND date > NOW()-INTERVAL '30 days'",
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults":{"unit":"short"}}
+    },
+
+    {
+      "id": 101,
+      "title": "ROW — Energy by Site & Architecture",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {"x":0,"y":5,"w":24,"h":1}
+    },
+
     {
       "id": 2,
       "title": "Daily Energy Trend by Site",
+      "description": "Time series — one line per site. Source: v_daily_energy_by_site",
       "type": "timeseries",
-      "gridPos": {"x":12,"y":0,"w":12,"h":6},
+      "gridPos": {"x":0,"y":6,"w":16,"h":7},
       "datasource": {"uid":"greenops_pg"},
       "targets": [{
-        "rawSql": "SELECT day AS time, site, total_j FROM v_daily_energy_by_site WHERE day > NOW()-INTERVAL '30 days' ORDER BY time",
+        "rawSql": "SELECT day AS time, site, total_j FROM v_daily_energy_by_site WHERE day > NOW()-INTERVAL '30 days' ORDER BY time ASC",
         "format": "table"
       }],
-      "fieldConfig": {"defaults":{"unit":"joule"}}
+      "fieldConfig": {
+        "defaults": {"unit":"joule"},
+        "overrides": [
+          {"matcher":{"id":"byName","options":"rennes"},   "properties":[{"id":"color","value":{"fixedColor":"#4CAF50","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"lille"},    "properties":[{"id":"color","value":{"fixedColor":"#2196F3","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"nancy"},    "properties":[{"id":"color","value":{"fixedColor":"#FF9800","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"lyon"},     "properties":[{"id":"color","value":{"fixedColor":"#E91E63","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"grenoble"}, "properties":[{"id":"color","value":{"fixedColor":"#9C27B0","mode":"fixed"}}]}
+        ]
+      },
+      "options": {"tooltip":{"mode":"multi"},"legend":{"displayMode":"list","placement":"bottom"}}
     },
+
     {
       "id": 3,
       "title": "Energy by Architecture",
+      "description": "FIX: query uses GROUP BY arch, returns 2 rows (x86_64, aarch64)",
       "type": "piechart",
-      "gridPos": {"x":0,"y":6,"w":8,"h":6},
+      "gridPos": {"x":16,"y":6,"w":8,"h":7},
       "datasource": {"uid":"greenops_pg"},
       "targets": [{
-        "rawSql": "SELECT arch, SUM(total_energy_j) AS energy_j FROM energy_jobs WHERE is_valid=TRUE GROUP BY arch",
-        "format": "table"
-      }]
-    },
-    {
-      "id": 4,
-      "title": "Process vs eBPF Measurement Coverage",
-      "type": "piechart",
-      "gridPos": {"x":8,"y":6,"w":8,"h":6},
-      "datasource": {"uid":"greenops_pg"},
-      "targets": [{
-        "rawSql": "SELECT measurement_src, COUNT(*) AS jobs FROM energy_jobs WHERE is_valid=TRUE GROUP BY measurement_src",
-        "format": "table"
-      }]
-    },
-    {
-      "id": 5,
-      "title": "Process vs eBPF — Energy Comparison",
-      "type": "bargauge",
-      "gridPos": {"x":16,"y":6,"w":8,"h":6},
-      "datasource": {"uid":"greenops_pg"},
-      "targets": [{
-        "rawSql": "SELECT measurement_src, AVG(total_energy_j) AS avg_j FROM energy_jobs WHERE is_valid=TRUE AND measurement_src != 'unknown' GROUP BY measurement_src",
+        "rawSql": "SELECT arch AS \"Architecture\", SUM(total_energy_j) AS \"Energy (J)\" FROM energy_jobs WHERE is_valid=TRUE AND arch IS NOT NULL AND arch != '' GROUP BY arch ORDER BY \"Energy (J)\" DESC",
         "format": "table"
       }],
+      "options": {
+        "pieType": "donut",
+        "legend": {"displayMode":"list","placement":"right"},
+        "tooltip": {"mode":"single"}
+      },
       "fieldConfig": {"defaults":{"unit":"joule"}}
     },
+
+    {
+      "id": 102,
+      "title": "ROW — Measurement Source Analysis",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {"x":0,"y":13,"w":24,"h":1}
+    },
+
+    {
+      "id": 4,
+      "title": "Measurement Coverage — Job Count",
+      "description": "FIX: pie shows 3 slices: process / ebpf / unknown",
+      "type": "piechart",
+      "gridPos": {"x":0,"y":14,"w":6,"h":7},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT measurement_src AS \"Source\", COUNT(*) AS \"Jobs\" FROM energy_jobs WHERE is_valid=TRUE GROUP BY measurement_src",
+        "format": "table"
+      }],
+      "options": {
+        "pieType": "pie",
+        "legend": {"displayMode":"list","placement":"right"}
+      },
+      "fieldConfig": {
+        "overrides": [
+          {"matcher":{"id":"byName","options":"process"}, "properties":[{"id":"color","value":{"fixedColor":"#4CAF50","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"ebpf"},    "properties":[{"id":"color","value":{"fixedColor":"#2196F3","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"unknown"}, "properties":[{"id":"color","value":{"fixedColor":"#9E9E9E","mode":"fixed"}}]}
+        ]
+      }
+    },
+
+    {
+      "id": 5,
+      "title": "Process vs eBPF — Avg Energy per Job (J)",
+      "description": "FIX: was 'No data' because measurement_src column may be null. Query now uses COALESCE.",
+      "type": "bargauge",
+      "gridPos": {"x":6,"y":14,"w":8,"h":7},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT COALESCE(measurement_src,'unknown') AS source, ROUND(AVG(total_energy_j)::numeric,3) AS avg_energy_j, COUNT(*) AS job_count FROM energy_jobs WHERE is_valid=TRUE GROUP BY COALESCE(measurement_src,'unknown') ORDER BY avg_energy_j DESC",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {"unit":"joule","min":0},
+        "overrides": [
+          {"matcher":{"id":"byName","options":"avg_energy_j"},"properties":[{"id":"displayName","value":"Avg Energy (J)"}]},
+          {"matcher":{"id":"byName","options":"job_count"},   "properties":[{"id":"displayName","value":"Job Count"}]}
+        ]
+      },
+      "options": {"orientation":"horizontal","displayMode":"gradient","reduceOptions":{"calcs":["lastNotNull"]}}
+    },
+
+    {
+      "id": 16,
+      "title": "Process vs eBPF — Energy over Time",
+      "description": "Daily avg energy split by measurement source",
+      "type": "timeseries",
+      "gridPos": {"x":14,"y":14,"w":10,"h":7},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT DATE_TRUNC('day', date) AS time, COALESCE(measurement_src,'unknown') AS source, AVG(total_energy_j) AS avg_j FROM energy_jobs WHERE is_valid=TRUE AND date > NOW()-INTERVAL '30 days' GROUP BY 1,2 ORDER BY 1",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {"unit":"joule"},
+        "overrides": [
+          {"matcher":{"id":"byName","options":"process"}, "properties":[{"id":"color","value":{"fixedColor":"#4CAF50","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"ebpf"},    "properties":[{"id":"color","value":{"fixedColor":"#2196F3","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"unknown"}, "properties":[{"id":"color","value":{"fixedColor":"#9E9E9E","mode":"fixed"}}]}
+        ]
+      },
+      "options": {"tooltip":{"mode":"multi"}}
+    },
+
+    {
+      "id": 103,
+      "title": "ROW — Job & Pipeline Analysis",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {"x":0,"y":21,"w":24,"h":1}
+    },
+
     {
       "id": 6,
       "title": "Top 10 Energy-Intensive Jobs",
       "type": "table",
-      "gridPos": {"x":0,"y":12,"w":16,"h":8},
+      "gridPos": {"x":0,"y":22,"w":14,"h":8},
       "datasource": {"uid":"greenops_pg"},
       "targets": [{
-        "rawSql": "SELECT job_name, repo_name, site, category, ROUND(total_j::numeric,2) AS total_j, ROUND(avg_j::numeric,2) AS avg_j, runs FROM v_top_jobs_energy LIMIT 10",
+        "rawSql": "SELECT job_name, repo_name, site, category, measurement_src, ROUND(total_j::numeric,2) AS total_j, ROUND(avg_j::numeric,3) AS avg_j, ROUND(avg_duration_s::numeric,1) AS avg_dur_s, runs FROM v_top_jobs_energy LIMIT 10",
         "format": "table"
-      }]
+      }],
+      "fieldConfig": {
+        "overrides": [
+          {"matcher":{"id":"byName","options":"total_j"}, "properties":[{"id":"unit","value":"joule"},{"id":"custom.width","value":90}]},
+          {"matcher":{"id":"byName","options":"avg_j"},   "properties":[{"id":"unit","value":"joule"},{"id":"custom.width","value":90}]},
+          {"matcher":{"id":"byName","options":"site"},    "properties":[{"id":"custom.width","value":80}]},
+          {"matcher":{"id":"byName","options":"category"},"properties":[{"id":"custom.width","value":70}]},
+          {"matcher":{"id":"byName","options":"measurement_src"},"properties":[{"id":"custom.width","value":80},{"id":"displayName","value":"msrc"}]}
+        ]
+      },
+      "options": {
+        "sortBy": [{"displayName":"total_j","desc":true}],
+        "cellHeight": "sm",
+        "footer": {"show":false}
+      }
     },
+
     {
-      "id": 7,
-      "title": "Ingestion Health",
-      "type": "stat",
-      "gridPos": {"x":16,"y":12,"w":8,"h":4},
+      "id": 17,
+      "title": "Pipeline Energy Distribution by Repo",
+      "type": "bargauge",
+      "gridPos": {"x":14,"y":22,"w":10,"h":8},
       "datasource": {"uid":"greenops_pg"},
       "targets": [{
-        "rawSql": "SELECT SUM(rows_ingested) AS ingested, SUM(rows_rejected) AS rejected, ROUND(100.0*SUM(rows_ingested)/NULLIF(SUM(rows_ingested)+SUM(rows_rejected),0),1) AS success_pct FROM ingestion_log WHERE run_at > NOW()-INTERVAL '24 hours'",
+        "rawSql": "SELECT repo_name, ROUND(AVG(total_pipeline_energy_j)::numeric,2) AS avg_pipeline_j, COUNT(*) AS runs FROM energy_pipelines WHERE is_valid=TRUE GROUP BY repo_name ORDER BY avg_pipeline_j DESC LIMIT 10",
         "format": "table"
-      }]
+      }],
+      "fieldConfig": {
+        "defaults": {"unit":"joule","min":0},
+        "overrides": [{"matcher":{"id":"byName","options":"avg_pipeline_j"},"properties":[{"id":"displayName","value":"Avg Pipeline (J)"}]}]
+      },
+      "options": {"orientation":"horizontal","displayMode":"gradient"}
     },
+
     {
-      "id": 8,
-      "title": "Ingestion Volume — 24h",
-      "type": "timeseries",
-      "gridPos": {"x":0,"y":20,"w":24,"h":5},
-      "datasource": {"uid":"greenops_pg"},
-      "targets": [{
-        "rawSql": "SELECT hour AS time, ingested, rejected FROM v_ingestion_health WHERE hour > NOW()-INTERVAL '7 days' ORDER BY hour",
-        "format": "table"
-      }]
+      "id": 104,
+      "title": "ROW — Component Energy Breakdown",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {"x":0,"y":30,"w":24,"h":1}
     },
+
     {
       "id": 9,
-      "title": "Component Energy Breakdown (CPU/RAM/GPU/NIC/SD)",
+      "title": "Component Energy Over Time (CPU/RAM/GPU/NIC/SD)",
+      "description": "From energy_granularity via v_component_energy view",
       "type": "timeseries",
-      "gridPos": {"x":0,"y":25,"w":24,"h":7},
+      "gridPos": {"x":0,"y":31,"w":16,"h":8},
       "datasource": {"uid":"greenops_pg"},
       "targets": [{
         "rawSql": "SELECT day AS time, component, SUM(total_j) AS energy_j FROM v_component_energy WHERE day > NOW()-INTERVAL '30 days' GROUP BY day, component ORDER BY day",
         "format": "table"
       }],
-      "fieldConfig": {"defaults":{"unit":"joule"}}
+      "fieldConfig": {
+        "defaults": {"unit":"joule"},
+        "overrides": [
+          {"matcher":{"id":"byName","options":"cpu"},  "properties":[{"id":"color","value":{"fixedColor":"#2196F3","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"ram"},  "properties":[{"id":"color","value":{"fixedColor":"#4CAF50","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"gpu"},  "properties":[{"id":"color","value":{"fixedColor":"#FF9800","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"nic"},  "properties":[{"id":"color","value":{"fixedColor":"#E91E63","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"sd"},   "properties":[{"id":"color","value":{"fixedColor":"#9E9E9E","mode":"fixed"}}]}
+        ]
+      },
+      "options": {"tooltip":{"mode":"multi"},"legend":{"displayMode":"list","placement":"bottom"}}
     },
+
+    {
+      "id": 18,
+      "title": "Avg Component Power (W) by Job",
+      "description": "Heatmap-like table: which job burns most per component",
+      "type": "table",
+      "gridPos": {"x":16,"y":31,"w":8,"h":8},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT job_name, component, ROUND(AVG(avg_power_w)::numeric,3) AS avg_w FROM energy_granularity WHERE is_valid=TRUE GROUP BY job_name, component ORDER BY job_name, component",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {"unit":"watt"},
+        "overrides": [{"matcher":{"id":"byName","options":"avg_w"},"properties":[
+          {"id":"custom.displayMode","value":"color-background"},
+          {"id":"color","value":{"mode":"continuous-GrYlRd"}}
+        ]}]
+      }
+    },
+
+    {
+      "id": 105,
+      "title": "ROW — Temporal & Monthly Trends",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {"x":0,"y":39,"w":24,"h":1}
+    },
+
     {
       "id": 10,
       "title": "Monthly Energy per Category",
       "type": "barchart",
-      "gridPos": {"x":0,"y":32,"w":24,"h":7},
+      "gridPos": {"x":0,"y":40,"w":12,"h":8},
       "datasource": {"uid":"greenops_pg"},
       "targets": [{
-        "rawSql": "SELECT month, category, SUM(total_j) AS energy_j FROM v_monthly_job_energy GROUP BY month, category ORDER BY month",
+        "rawSql": "SELECT TO_CHAR(month, 'YYYY-MM') AS month, category, ROUND(SUM(total_j)::numeric,2) AS energy_j FROM v_monthly_job_energy GROUP BY month, category ORDER BY month, category",
         "format": "table"
       }],
-      "fieldConfig": {"defaults":{"unit":"joule"}}
+      "fieldConfig": {"defaults":{"unit":"joule"}},
+      "options": {
+        "xField": "month",
+        "stacking": "normal",
+        "fillOpacity": 80,
+        "legend": {"displayMode":"list","placement":"right"}
+      }
+    },
+
+    {
+      "id": 19,
+      "title": "Week-over-Week Energy Delta (%)",
+      "description": "MoM/WoW change — positive = regression, negative = improvement",
+      "type": "timeseries",
+      "gridPos": {"x":12,"y":40,"w":12,"h":8},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "WITH weekly AS (SELECT DATE_TRUNC('week', date) AS wk, SUM(total_energy_j) AS total FROM energy_jobs WHERE is_valid=TRUE GROUP BY 1) SELECT wk AS time, ROUND(100.0*(total - LAG(total) OVER (ORDER BY wk)) / NULLIF(LAG(total) OVER (ORDER BY wk),0), 1) AS delta_pct FROM weekly ORDER BY wk",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {"unit":"percent","color":{"mode":"thresholds"},
+          "thresholds":{"steps":[{"value":null,"color":"green"},{"value":0,"color":"yellow"},{"value":10,"color":"red"}]}}
+      },
+      "options": {"tooltip":{"mode":"single"}}
+    },
+
+    {
+      "id": 106,
+      "title": "ROW — Ingestion Observability",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {"x":0,"y":48,"w":24,"h":1}
+    },
+
+    {
+      "id": 7,
+      "title": "Ingestion Health — Last 24h",
+      "type": "stat",
+      "gridPos": {"x":0,"y":49,"w":8,"h":4},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT SUM(rows_ingested) AS ingested, SUM(rows_rejected) AS rejected, ROUND(100.0*SUM(rows_ingested)/NULLIF(SUM(rows_ingested)+SUM(rows_rejected),0),1) AS success_pct FROM ingestion_log WHERE run_at > NOW()-INTERVAL '24 hours'",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "overrides": [
+          {"matcher":{"id":"byName","options":"ingested"},    "properties":[{"id":"displayName","value":"Rows Ingested"},{"id":"color","value":{"fixedColor":"green","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"rejected"},    "properties":[{"id":"displayName","value":"Rows Rejected"},{"id":"color","value":{"fixedColor":"red","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"success_pct"}, "properties":[{"id":"displayName","value":"Success %"},{"id":"unit","value":"percent"}]}
+        ]
+      },
+      "options": {"colorMode":"background","graphMode":"none","textMode":"auto"}
+    },
+
+    {
+      "id": 8,
+      "title": "Ingestion Volume — Last 7d",
+      "type": "timeseries",
+      "gridPos": {"x":8,"y":49,"w":16,"h":7},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT hour AS time, ingested, rejected FROM v_ingestion_health WHERE hour > NOW()-INTERVAL '7 days' ORDER BY hour",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {"unit":"short"},
+        "overrides": [
+          {"matcher":{"id":"byName","options":"ingested"}, "properties":[{"id":"color","value":{"fixedColor":"#4CAF50","mode":"fixed"}}]},
+          {"matcher":{"id":"byName","options":"rejected"}, "properties":[{"id":"color","value":{"fixedColor":"#F44336","mode":"fixed"}}]}
+        ]
+      },
+      "options": {"tooltip":{"mode":"multi"}}
+    },
+
+    {
+      "id": 20,
+      "title": "Data Lineage — Quality per Site",
+      "type": "table",
+      "gridPos": {"x":0,"y":56,"w":24,"h":6},
+      "datasource": {"uid":"greenops_pg"},
+      "targets": [{
+        "rawSql": "SELECT site, file_type, SUM(rows_parsed) AS parsed, SUM(rows_inserted) AS inserted, SUM(rows_invalid) AS invalid, ROUND(100.0*SUM(rows_inserted)/NULLIF(SUM(rows_parsed),0),1) AS quality_pct FROM data_lineage GROUP BY site, file_type ORDER BY site, file_type",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "overrides": [{"matcher":{"id":"byName","options":"quality_pct"},"properties":[
+          {"id":"unit","value":"percent"},
+          {"id":"custom.displayMode","value":"color-background"},
+          {"id":"color","value":{"mode":"continuous-RdYlGr"}},
+          {"id":"thresholds","value":{"steps":[
+            {"value":null,"color":"red"},
+            {"value":80,"color":"yellow"},
+            {"value":95,"color":"green"}
+          ]}}
+        ]}]
+      }
     }
+
   ]
 }
