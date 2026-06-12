@@ -1,0 +1,70 @@
+{
+  "run_id": "c0851933",
+  "timestamp": "2026-06-12T14:45:58.238905",
+  "stages": [
+    {
+      "stage": "data_loading",
+      "ts": "2026-06-12T14:45:59.464254"
+    },
+    {
+      "stage": "validation",
+      "ts": "2026-06-12T14:46:13.355839"
+    },
+    {
+      "stage": "anomaly_detection",
+      "ts": "2026-06-12T14:46:13.805286"
+    },
+    {
+      "stage": "data_quality",
+      "ts": "2026-06-12T14:46:14.722437"
+    },
+    {
+      "stage": "feature_engineering",
+      "ts": "2026-06-12T14:46:15.100779"
+    },
+    {
+      "stage": "aggregated_analysis",
+      "ts": "2026-06-12T14:46:34.104333"
+    },
+    {
+      "stage": "ml_feature_importance",
+      "ts": "2026-06-12T14:46:38.868803"
+    },
+    {
+      "stage": "rl_setup",
+      "ts": "2026-06-12T14:46:48.429096"
+    },
+    {
+      "stage": "ddqn_training",
+      "ts": "2026-06-12T14:46:50.831191"
+    },
+    {
+      "stage": "ddqn_training",
+      "ts": "2026-06-12T15:10:50.791722"
+    },
+    {
+      "stage": "pg_training",
+      "ts": "2026-06-12T15:20:18.779730"
+    },
+    {
+      "stage": "pg_training",
+      "ts": "2026-06-12T15:30:15.850741"
+    },
+    {
+      "stage": "pg_training",
+      "ts": "2026-06-12T15:34:09.529426"
+    },
+    {
+      "stage": "continuous_training",
+      "ts": "2026-06-12T15:36:26.720264"
+    },
+    {
+      "stage": "feature_store_and_serving",
+      "ts": "2026-06-12T15:38:15.401560"
+    },
+    {
+      "stage": "export",
+      "ts": "2026-06-12T15:39:27.788539"
+    }
+  ]
+}
